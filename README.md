@@ -4,79 +4,57 @@ Kleiner, read-only Python-Dienst als Bruecke zwischen der inoffiziellen Kerbl-Io
 
 ## Docker Compose
 
-Voraussetzung ist eine installierte Docker-Desktop-Version mit Compose-Unterstützung.
-
-Der Compose-Stack besteht aus zwei Containern:
-
-- `kerbl-to-mqtt`: der Python-Bridge-Dienst
-- `mqtt`: ein lokaler Eclipse-Mosquitto-Broker
-
-### Lokales Image bauen
-
-Die normale Datei [docker-compose.yml](docker-compose.yml) baut das Python-Image aus dem aktuellen Quellcode:
-
-1. `.env.example` nach `.env` kopieren.
-2. In `.env` Kerbl-Zugangsdaten, Gerätenamen und MQTT-Einstellungen konfigurieren.
-3. Images bauen und Stack im Hintergrund starten:
-
-```powershell
-Copy-Item .env.example .env
-docker compose up -d --build
-```
-
-### Vorhandenes Image verwenden
-
-Der GitHub-Actions-Workflow veröffentlicht das Image bei jedem Push auf den Standard-Branch automatisch in der GitHub Container Registry. Für dieses Repository lautet die Image-Adresse:
+Das veröffentlichte Image liegt unter:
 
 ```text
 ghcr.io/9mad-max5/kerbl_to_mqtt:latest
 ```
 
-Bei einem privaten Repository muss sich der Zielserver vorher an GHCR anmelden. Bei einem öffentlichen Repository kann das Image direkt verwendet werden. Wenn das Bridge-Image bereits lokal vorhanden oder in einer Registry veröffentlicht ist, kann die build-freie Datei [docker-compose.image.yml](docker-compose.image.yml) verwendet werden:
+Image beziehen:
 
 ```powershell
-# Nur erforderlich, wenn das GHCR-Paket privat ist.
+docker pull ghcr.io/9mad-max5/kerbl_to_mqtt:latest
+```
+
+Falls das GHCR-Paket privat ist, vorher mit einem GitHub-Token und `read:packages` anmelden:
+
+```powershell
 docker login ghcr.io -u 9Mad-Max5
-
-$env:KERBL_TO_MQTT_IMAGE = "ghcr.io/9mad-max5/kerbl_to_mqtt:latest"
-docker compose -f docker-compose.image.yml up -d
 ```
 
-Für `docker login` wird ein GitHub-Personal-Access-Token mit mindestens `read:packages` benötigt. Alternativ kann das GHCR-Paket in den Package-Einstellungen auf öffentlich gestellt werden.
+Für deine bestehende Compose-Datei kannst du den Dienst direkt ergänzen:
 
-Ohne `KERBL_TO_MQTT_IMAGE` wird das lokale Image `kerbl-to-mqtt:latest` erwartet. Dieses kann beispielsweise vorher mit `docker build -t kerbl-to-mqtt:latest .` gebaut werden. Die build-freie Compose-Datei baut selbst nichts und kann daher erst starten, wenn dieses Image verfügbar ist.
+```yaml
+  kerbl-to-mqtt:
+    image: ghcr.io/9mad-max5/kerbl_to_mqtt:latest
+    container_name: kerbl-to-mqtt
+    environment:
+      KERBL_EMAIL: "deine-mail@example.com"
+      KERBL_PASSWORD: "dein-passwort"
+      KERBL_BASE_URL: "https://backend.kerbl-iot.com"
+      KERBL_DEVICES: '[{"type":"smart-coop","name":"Hühnerstall"}]'
+      MQTT_HOST: "mqtt"
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ""
+      MQTT_PASSWORD: ""
+      MQTT_TLS: "false"
+      MQTT_TOPIC_PREFIX: "kerbl"
+      POLL_INTERVAL_SECONDS: "900"
+      TZ: "${TZ}"
+    networks:
+      - mqtt
+    restart: unless-stopped
+```
 
-Der Status kann so geprüft werden:
+Der MQTT-Broker muss im selben Docker-Netzwerk unter dem Namen `mqtt` erreichbar sein. Der Dienst benötigt weder `privileged` noch einen veröffentlichten Port.
 
 ```powershell
-docker compose ps
+docker compose up -d
 docker compose logs -f kerbl-to-mqtt
-```
-
-MQTT ist lokal unter `localhost:1883` erreichbar. Zum Beenden:
-
-```powershell
 docker compose down
 ```
 
-Das Standardintervall ist 900 Sekunden (15 Minuten). Der lokale Broker ist absichtlich ohne Authentifizierung konfiguriert. Für einen produktiven MQTT-Broker müssen `MQTT_HOST`, `MQTT_PORT`, Zugangsdaten und gegebenenfalls `MQTT_TLS=true` in `.env` gesetzt werden. Der Dienst veröffentlicht unter `kerbl/...` und nimmt keine MQTT-Schreibbefehle an.
-
-## Lokale Konfiguration mit `.env`
-
-Unter Windows kann lokal einfach `.env.example` nach `.env` kopiert und angepasst werden. Der Python-Start lädt diese Datei automatisch; Docker Compose verwendet sie ebenfalls über `env_file`.
-
-```powershell
-Copy-Item .env.example .env
-# .env bearbeiten
-$env:PYTHONPATH = "src"
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python -m kerbl_to_mqtt
-```
-
-Die Datei `.env` ist in `.gitignore` eingetragen und wird nicht committet. Docker Compose und der lokale Python-Start verwenden dieselben Variablennamen.
-Der laufende Prozess kann im selben Terminal mit `Ctrl+C` sofort beendet werden. In Docker beendet `docker compose down` den Dienst über `SIGTERM`.
+Das Standard-Polling-Intervall beträgt 15 Minuten. GitHub Actions veröffentlicht das Image nach Pushes auf den Standard-Branch in GHCR.
 
 ## Geraete konfigurieren
 
@@ -104,33 +82,7 @@ Unterstuetzte Typen werden vom Adapter auf die Kerbl-Pfade abgebildet, unter and
 
 Der Dienst verwendet nur HTTP-GET fuer Geraetedaten. Es gibt keine MQTT-Kommandos und keine Aufrufe der Kerbl-Schreibmethoden.
 
-### Integration in eine bestehende Compose-Datei
-
-Wenn du Kerbl zusammen mit anderen Diensten wie Sonarr betreibst, kannst du diesen Service in deine bestehende Compose-Datei aufnehmen:
-
-```yaml
-  kerbl-to-mqtt:
-    image: ghcr.io/DEIN-GITHUB-USERNAME/kerbl-to-mqtt:latest
-    container_name: kerbl-to-mqtt
-    environment:
-      KERBL_EMAIL: "deine-mail@example.com"
-      KERBL_PASSWORD: "dein-passwort"
-      KERBL_BASE_URL: "https://backend.kerbl-iot.com"
-      KERBL_DEVICES: '[{"type":"smart-coop","name":"Hühnerstall"}]'
-      MQTT_HOST: "mqtt"
-      MQTT_PORT: "1883"
-      MQTT_USERNAME: ""
-      MQTT_PASSWORD: ""
-      MQTT_TLS: "false"
-      MQTT_TOPIC_PREFIX: "kerbl"
-      POLL_INTERVAL_SECONDS: "900"
-      TZ: "${TZ}"
-    restart: unless-stopped
-```
-
-Die Werte werden hier direkt im Container unter `environment` gesetzt. Ersetze insbesondere `KERBL_EMAIL`, `KERBL_PASSWORD`, den Gerätenamen und das Image. Diese Variante sollte nur in einer nicht öffentlichen Compose-Datei verwendet werden, weil das Passwort sonst im Klartext in der Datei steht. Für ein öffentliches Repository bleiben `.env`, Docker Secrets oder ein Secret-Manager die bessere Lösung.
-
-### Umgebungsvariablen
+## Variablen
 
 Diese Variablen werden vom `kerbl-to-mqtt`-Container verwendet:
 
@@ -157,7 +109,6 @@ KERBL_DEVICES: '[{"type":"smart-coop","name":"Hühnerstall"}]'
 
 `KERBL_TO_MQTT_IMAGE` ist keine Anwendungsvariable. Sie wird nur von `docker-compose.image.yml` zur Auswahl des bereits veröffentlichten Container-Images verwendet.
 
-Wenn bereits ein MQTT-Broker vorhanden ist, kann der `mqtt`-Service entfallen. Der Kerbl-Service muss dann nur mit dem Docker-Netzwerk des bestehenden Brokers verbunden werden. `privileged` und veröffentlichte Ports sind für `kerbl-to-mqtt` nicht erforderlich.
 ## Lokal testen
 
 ```powershell
