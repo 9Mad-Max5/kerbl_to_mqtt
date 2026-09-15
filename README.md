@@ -26,12 +26,23 @@ docker compose up -d --build
 
 ### Vorhandenes Image verwenden
 
-Wenn das Bridge-Image bereits lokal vorhanden oder in einer Registry veröffentlicht ist, kann die build-freie Datei [docker-compose.image.yml](docker-compose.image.yml) verwendet werden:
+Der GitHub-Actions-Workflow veröffentlicht das Image bei jedem Push auf den Standard-Branch automatisch in der GitHub Container Registry. Für dieses Repository lautet die Image-Adresse:
+
+```text
+ghcr.io/9mad-max5/kerbl_to_mqtt:latest
+```
+
+Bei einem privaten Repository muss sich der Zielserver vorher an GHCR anmelden. Bei einem öffentlichen Repository kann das Image direkt verwendet werden. Wenn das Bridge-Image bereits lokal vorhanden oder in einer Registry veröffentlicht ist, kann die build-freie Datei [docker-compose.image.yml](docker-compose.image.yml) verwendet werden:
 
 ```powershell
-$env:KERBL_TO_MQTT_IMAGE = "ghcr.io/dein-benutzername/kerbl-to-mqtt:latest"
+# Nur erforderlich, wenn das GHCR-Paket privat ist.
+docker login ghcr.io -u 9Mad-Max5
+
+$env:KERBL_TO_MQTT_IMAGE = "ghcr.io/9mad-max5/kerbl_to_mqtt:latest"
 docker compose -f docker-compose.image.yml up -d
 ```
+
+Für `docker login` wird ein GitHub-Personal-Access-Token mit mindestens `read:packages` benötigt. Alternativ kann das GHCR-Paket in den Package-Einstellungen auf öffentlich gestellt werden.
 
 Ohne `KERBL_TO_MQTT_IMAGE` wird das lokale Image `kerbl-to-mqtt:latest` erwartet. Dieses kann beispielsweise vorher mit `docker build -t kerbl-to-mqtt:latest .` gebaut werden. Die build-freie Compose-Datei baut selbst nichts und kann daher erst starten, wenn dieses Image verfügbar ist.
 
