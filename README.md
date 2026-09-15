@@ -93,6 +93,60 @@ Unterstuetzte Typen werden vom Adapter auf die Kerbl-Pfade abgebildet, unter and
 
 Der Dienst verwendet nur HTTP-GET fuer Geraetedaten. Es gibt keine MQTT-Kommandos und keine Aufrufe der Kerbl-Schreibmethoden.
 
+### Integration in eine bestehende Compose-Datei
+
+Wenn du Kerbl zusammen mit anderen Diensten wie Sonarr betreibst, kannst du diesen Service in deine bestehende Compose-Datei aufnehmen:
+
+```yaml
+  kerbl-to-mqtt:
+    image: ghcr.io/DEIN-GITHUB-USERNAME/kerbl-to-mqtt:latest
+    container_name: kerbl-to-mqtt
+    environment:
+      KERBL_EMAIL: "deine-mail@example.com"
+      KERBL_PASSWORD: "dein-passwort"
+      KERBL_BASE_URL: "https://backend.kerbl-iot.com"
+      KERBL_DEVICES: '[{"type":"smart-coop","name":"Hühnerstall"}]'
+      MQTT_HOST: "mqtt"
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ""
+      MQTT_PASSWORD: ""
+      MQTT_TLS: "false"
+      MQTT_TOPIC_PREFIX: "kerbl"
+      POLL_INTERVAL_SECONDS: "900"
+      TZ: "${TZ}"
+    restart: unless-stopped
+```
+
+Die Werte werden hier direkt im Container unter `environment` gesetzt. Ersetze insbesondere `KERBL_EMAIL`, `KERBL_PASSWORD`, den Gerätenamen und das Image. Diese Variante sollte nur in einer nicht öffentlichen Compose-Datei verwendet werden, weil das Passwort sonst im Klartext in der Datei steht. Für ein öffentliches Repository bleiben `.env`, Docker Secrets oder ein Secret-Manager die bessere Lösung.
+
+### Umgebungsvariablen
+
+Diese Variablen werden vom `kerbl-to-mqtt`-Container verwendet:
+
+| Variable | Pflicht | Beschreibung | Standard |
+| --- | --- | --- | --- |
+| `KERBL_EMAIL` | Ja | E-Mail-Adresse des Kerbl-IoT-Kontos | - |
+| `KERBL_PASSWORD` | Ja | Passwort des Kerbl-IoT-Kontos | - |
+| `KERBL_BASE_URL` | Nein | Kerbl-Backend, normalerweise Produktion | `https://backend.kerbl-iot.com` |
+| `KERBL_DEVICES` | Ja | JSON-Array der Geräte, Auswahl per `name` oder `id` | - |
+| `MQTT_HOST` | Nein | DNS-Name oder IP-Adresse des MQTT-Brokers | `mqtt` |
+| `MQTT_PORT` | Nein | MQTT-Port | `1883` |
+| `MQTT_USERNAME` | Nein | Benutzername am MQTT-Broker | leer |
+| `MQTT_PASSWORD` | Nein | Passwort am MQTT-Broker | leer |
+| `MQTT_TLS` | Nein | TLS für MQTT mit `true` aktivieren | `false` |
+| `MQTT_TOPIC_PREFIX` | Nein | Präfix für alle veröffentlichten Topics | `kerbl` |
+| `POLL_INTERVAL_SECONDS` | Nein | Polling-Intervall in Sekunden, mindestens 10 | `900` |
+| `TZ` | Nein | Zeitzone für den Container | Docker-Standard |
+
+`KERBL_DEVICES` verwendet zum Beispiel:
+
+```yaml
+KERBL_DEVICES: '[{"type":"smart-coop","name":"Hühnerstall"}]'
+```
+
+`KERBL_TO_MQTT_IMAGE` ist keine Anwendungsvariable. Sie wird nur von `docker-compose.image.yml` zur Auswahl des bereits veröffentlichten Container-Images verwendet.
+
+Wenn bereits ein MQTT-Broker vorhanden ist, kann der `mqtt`-Service entfallen. Der Kerbl-Service muss dann nur mit dem Docker-Netzwerk des bestehenden Brokers verbunden werden. `privileged` und veröffentlichte Ports sind für `kerbl-to-mqtt` nicht erforderlich.
 ## Lokal testen
 
 ```powershell
