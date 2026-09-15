@@ -4,24 +4,6 @@ Kleiner, read-only Python-Dienst als Bruecke zwischen der inoffiziellen Kerbl-Io
 
 ## Docker Compose
 
-Das veröffentlichte Image liegt unter:
-
-```text
-ghcr.io/9mad-max5/kerbl_to_mqtt:latest
-```
-
-Image beziehen:
-
-```powershell
-docker pull ghcr.io/9mad-max5/kerbl_to_mqtt:latest
-```
-
-Falls das GHCR-Paket privat ist, vorher mit einem GitHub-Token und `read:packages` anmelden:
-
-```powershell
-docker login ghcr.io -u 9Mad-Max5
-```
-
 Für deine bestehende Compose-Datei kannst du den Dienst direkt ergänzen:
 
 ```yaml
@@ -40,31 +22,42 @@ Für deine bestehende Compose-Datei kannst du den Dienst direkt ergänzen:
       MQTT_TLS: "false"
       MQTT_TOPIC_PREFIX: "kerbl"
       POLL_INTERVAL_SECONDS: "900"
-      TZ: "${TZ}"
-    networks:
-      - mqtt
+      TZ: "Europe/Berlin"
     restart: unless-stopped
-```
-
-Der MQTT-Broker muss im selben Docker-Netzwerk unter dem Namen `mqtt` erreichbar sein. Der Dienst benötigt weder `privileged` noch einen veröffentlichten Port.
-
-```powershell
-docker compose up -d
-docker compose logs -f kerbl-to-mqtt
-docker compose down
 ```
 
 Das Standard-Polling-Intervall beträgt 15 Minuten. GitHub Actions veröffentlicht das Image nach Pushes auf den Standard-Branch in GHCR.
 
+## Docker Run
+
+```sh
+docker run -d \
+  --name kerbl-to-mqtt \
+  --restart unless-stopped \
+  -e KERBL_EMAIL="deine-mail@example.com" \
+  -e KERBL_PASSWORD="dein-passwort" \
+  -e KERBL_BASE_URL="https://backend.kerbl-iot.com" \
+  -e 'KERBL_DEVICES=[{"type":"smart-coop","name":"Hühnerstall"}]' \
+  -e MQTT_HOST="mqtt" \
+  -e MQTT_PORT="1883" \
+  -e MQTT_USERNAME="" \
+  -e MQTT_PASSWORD="" \
+  -e MQTT_TLS="false" \
+  -e MQTT_TOPIC_PREFIX="kerbl" \
+  -e POLL_INTERVAL_SECONDS="900" \
+  -e TZ="Europe/Berlin" \
+  ghcr.io/9mad-max5/kerbl_to_mqtt:latest
+```
+
 ## Geraete konfigurieren
 
-`KERBL_DEVICES` ist ein JSON-Array. Geräte können über ihren exakten Anzeigenamen ausgewählt werden:
+`KERBL_DEVICES` muss ein JSON-Array sein, auch wenn nur ein Gerät verwendet wird. Der Gerätename wird exakt gegen `description` beziehungsweise `name` aus der Kerbl-Geräteliste verglichen:
 
 ```dotenv
 KERBL_DEVICES=[{"type":"smart-coop","name":"Hühnerstall"}]
 ```
 
-Der Name wird gegen `description` beziehungsweise `name` aus der Kerbl-Geräteliste verglichen. Bei mehreren Geräten mit demselben Namen muss ein eindeutiger Name verwendet werden. IDs werden weiterhin unterstützt:
+Bei mehreren Geräten mit demselben Namen muss ein eindeutiger Name verwendet werden. IDs werden weiterhin unterstützt:
 
 ```dotenv
 KERBL_DEVICES=[{"type":"smart-coop","id":"abc123"}]
@@ -100,22 +93,5 @@ Diese Variablen werden vom `kerbl-to-mqtt`-Container verwendet:
 | `MQTT_TOPIC_PREFIX` | Nein | Präfix für alle veröffentlichten Topics | `kerbl` |
 | `POLL_INTERVAL_SECONDS` | Nein | Polling-Intervall in Sekunden, mindestens 10 | `900` |
 | `TZ` | Nein | Zeitzone für den Container | Docker-Standard |
-
-`KERBL_DEVICES` verwendet zum Beispiel:
-
-```yaml
-KERBL_DEVICES: '[{"type":"smart-coop","name":"Hühnerstall"}]'
-```
-
-`KERBL_TO_MQTT_IMAGE` ist keine Anwendungsvariable. Sie wird nur von `docker-compose.image.yml` zur Auswahl des bereits veröffentlichten Container-Images verwendet.
-
-## Lokal testen
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-pytest
-```
 
 Die API stammt aus [9Mad-Max5/kerbl_api](https://github.com/9Mad-Max5/kerbl_api). Sie ist inoffiziell und kann sich ohne Vorankuendigung aendern.
